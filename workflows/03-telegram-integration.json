@@ -1,0 +1,80 @@
+{
+  "name": "03 - Telegram Integration (Fixed)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.thenewsapi.com/v1/news/top",
+        "queryParameters": {
+          "parameter": [
+            { "name": "api_token", "value": "i36rBJnfsyLRyTJG1NN6GYpCqAJHJtwLLbtsQ6nH" },
+            { "name": "locale", "value": "us" },
+            { "name": "limit", "value": "3" }
+          ]
+        }
+      },
+      "id": "http-request",
+      "name": "HTTP Request - News API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first();\nconst items = (input?.json?.data ?? []).slice(0,5);\nconst headlines = items.map((a, i) => `${i+1}. ${a.title}`);\nconst message = `📰 Latest Top Stories\\n\\n${headlines.join('\\n')}\\n\\nSource: TheNewsAPI.com\\nFetched: ${new Date().toLocaleString()}`;\nreturn [{ json: { message, headlines, totalHeadlines: headlines.length, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "code-node",
+      "name": "Process News Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "748964740",
+        "text": "={{ $json.message }}",
+        "additionalFields": {}
+      },
+      "id": "telegram-node",
+      "name": "Send to Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          { "node": "HTTP Request - News API", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "HTTP Request - News API": {
+      "main": [
+        [
+          { "node": "Process News Data", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Process News Data": {
+      "main": [
+        [
+          { "node": "Send to Telegram", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1"
+}

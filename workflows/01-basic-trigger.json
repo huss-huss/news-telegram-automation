@@ -1,0 +1,45 @@
+{
+  "name": "01 - Basic Trigger Tutorial",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// This is your first Code node!\n// It receives data from the previous node and can modify it\n\n// Get the data from the Manual Trigger\nconst triggerData = $input.first();\n\n// Create a simple message\nconst message = `Hello from n8n! 🚀\n\nThis is your first workflow.\nTimestamp: ${new Date().toLocaleString()}\n\nYou can modify this message in the Code node.`;\n\n// Return the data for the next node\nreturn [{\n  json: {\n    message: message,\n    timestamp: new Date().toISOString(),\n    workflowName: 'Basic Trigger Tutorial'\n  }\n}];"
+      },
+      "id": "code-node",
+      "name": "Code Node",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code Node",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1"
+}
