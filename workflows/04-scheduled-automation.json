@@ -80,7 +80,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst articles = $input.all().map((item) => item.json);\nconst lines = articles.map((a, i) => {\n  const source = a.source ? ` <i>(${esc(a.source)})</i>` : '';\n  return `${i + 1}. <a href=\"${esc(a.url)}\">${esc(a.title)}</a>${source}`;\n});\nconst stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');\nlet message = `<b>Daily News Roundup</b>\\n\\n${lines.join('\\n')}\\n\\n<i>Source: TheNewsAPI.com, ${stamp} UTC</i>`;\n// Telegram rejects messages longer than 4096 characters.\nif (message.length > 4000) message = message.slice(0, 3990) + '\\n...';\nreturn [{ json: { message, articleKeys: articles.map((a) => a.key), totalHeadlines: articles.length } }];"
+        "jsCode": "const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;');\nconst articles = $input.all().map((item) => item.json);\nconst lines = articles.map((a, i) => {\n  const source = a.source ? ` <i>(${esc(a.source)})</i>` : '';\n  return `${i + 1}. <a href=\"${esc(a.url)}\">${esc(a.title)}</a>${source}`;\n});\nconst stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');\nlet message = `<b>Daily News Roundup</b>\\n\\n${lines.join('\\n')}\\n\\n<i>Source: TheNewsAPI.com, ${stamp} UTC</i>`;\n// Telegram rejects messages longer than 4096 characters.\nif (message.length > 4000) message = message.slice(0, 3990) + '\\n...';\nreturn [{ json: { message, articleKeys: articles.map((a) => a.key), totalHeadlines: articles.length } }];"
       },
       "id": "format-node",
       "name": "Format Digest",

@@ -58,7 +58,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst body = $input.first().json;\nif (!Array.isArray(body.data)) {\n  throw new Error('Unexpected News API response: missing data[] array');\n}\nconst articles = body.data.filter((a) => a && a.title && a.url);\nconst lines = articles.map((a, i) => `${i + 1}. <a href=\"${esc(a.url)}\">${esc(a.title.trim())}</a>`);\nconst message = `<b>Latest Top Stories</b>\\n\\n${lines.join('\\n')}\\n\\n<i>Source: TheNewsAPI.com</i>`;\nreturn [{ json: { message, totalHeadlines: lines.length, timestamp: new Date().toISOString() } }];"
+        "jsCode": "const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;');\nconst body = $input.first().json;\nif (!Array.isArray(body.data)) {\n  throw new Error('Unexpected News API response: missing data[] array');\n}\nconst articles = body.data.filter((a) => a && a.title && a.url);\nconst lines = articles.map((a, i) => `${i + 1}. <a href=\"${esc(a.url)}\">${esc(a.title.trim())}</a>`);\nconst message = `<b>Latest Top Stories</b>\\n\\n${lines.join('\\n')}\\n\\n<i>Source: TheNewsAPI.com</i>`;\nreturn [{ json: { message, totalHeadlines: lines.length, timestamp: new Date().toISOString() } }];"
       },
       "id": "code-node",
       "name": "Process News Data",
