@@ -1,13 +1,13 @@
 {
-  "name": "04 - Scheduled News Automation (Fixed)",
+  "name": "04 - Scheduled News Automation",
   "nodes": [
     {
       "parameters": {
         "rule": {
           "interval": [
             {
-              "field": "hour",
-              "expression": "9"
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
             }
           ]
         }
@@ -15,7 +15,7 @@
       "id": "schedule-trigger",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1,
+      "typeVersion": 1.2,
       "position": [
         240,
         300
@@ -23,7 +23,6 @@
     },
     {
       "parameters": {
-        "method": "GET",
         "url": "https://api.thenewsapi.com/v1/news/top",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpQueryAuth",
@@ -32,13 +31,20 @@
           "parameters": [
             {
               "name": "locale",
-              "value": "us"
+              "value": "={{ $env.NEWS_LOCALE || 'us' }}"
+            },
+            {
+              "name": "language",
+              "value": "={{ $env.NEWS_LANGUAGE || 'en' }}"
             },
             {
               "name": "limit",
-              "value": "5"
+              "value": "={{ $env.NEWS_LIMIT || '3' }}"
             }
           ]
+        },
+        "options": {
+          "timeout": 15000
         }
       },
       "id": "http-request",
@@ -49,6 +55,9 @@
         460,
         300
       ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
       "credentials": {
         "httpQueryAuth": {
           "id": "REPLACE_WITH_CREDENTIAL_ID",
@@ -58,10 +67,10 @@
     },
     {
       "parameters": {
-        "jsCode": "const input = $input.first();\nconst items = (input?.json?.data ?? []).slice(0,5);\nconst headlines = items.map((a, i) => `${i+1}. ${a.title}`);\nconst message = `📰 *Daily News Roundup* 📰\\n\\n${headlines.join('\\n')}\\n\\n📊 *Summary:*\\n• Total headlines: ${headlines.length}\\n• Source: TheNewsAPI.com\\n• Time: ${new Date().toLocaleString()}\\n\\n🔗 *Read more:* [TheNewsAPI.com](https://thenewsapi.com)`;\nreturn [{ json: { message, headlines, totalHeadlines: headlines.length, timestamp: new Date().toISOString(), success: true } }];"
+        "jsCode": "// Normalise the API response and drop articles that were already delivered.\n// Keys of delivered articles are stored in workflow static data by \"Remember Sent Articles\".\n// Note: n8n only persists static data for production (active, trigger-started) executions,\n// so manual test runs never mark anything as sent.\nconst body = $input.first().json;\nif (!Array.isArray(body.data)) {\n  throw new Error('Unexpected News API response: missing data[] array');\n}\nconst staticData = $getWorkflowStaticData('global');\nconst alreadySent = new Set(staticData.sentKeys || []);\nconst inThisRun = new Set();\nconst fresh = [];\nfor (const a of body.data) {\n  if (!a || !a.title || !a.url) continue;\n  const key = a.uuid || a.url;\n  if (alreadySent.has(key) || inThisRun.has(key)) continue;\n  inThisRun.add(key);\n  fresh.push({\n    json: {\n      key,\n      title: String(a.title).trim(),\n      url: a.url,\n      source: a.source || '',\n      publishedAt: a.published_at || null,\n    },\n  });\n}\n// Returning zero items ends the execution here: nothing new, nothing sent.\nreturn fresh;"
       },
-      "id": "code-node",
-      "name": "Process News Data",
+      "id": "dedup-node",
+      "name": "Normalize and Dedup",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -71,21 +80,38 @@
     },
     {
       "parameters": {
-        "operation": "sendMessage",
+        "jsCode": "const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst articles = $input.all().map((item) => item.json);\nconst lines = articles.map((a, i) => {\n  const source = a.source ? ` <i>(${esc(a.source)})</i>` : '';\n  return `${i + 1}. <a href=\"${esc(a.url)}\">${esc(a.title)}</a>${source}`;\n});\nconst stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');\nlet message = `<b>Daily News Roundup</b>\\n\\n${lines.join('\\n')}\\n\\n<i>Source: TheNewsAPI.com, ${stamp} UTC</i>`;\n// Telegram rejects messages longer than 4096 characters.\nif (message.length > 4000) message = message.slice(0, 3990) + '\\n...';\nreturn [{ json: { message, articleKeys: articles.map((a) => a.key), totalHeadlines: articles.length } }];"
+      },
+      "id": "format-node",
+      "name": "Format Digest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
         "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
         "text": "={{ $json.message }}",
         "additionalFields": {
-          "parseMode": "Markdown"
+          "appendAttribution": false,
+          "disable_web_page_preview": true,
+          "parse_mode": "HTML"
         }
       },
       "id": "telegram-node",
       "name": "Send to Telegram",
       "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1,
+      "typeVersion": 1.2,
       "position": [
-        900,
+        1120,
         300
       ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
       "credentials": {
         "telegramApi": {
           "id": "REPLACE_WITH_CREDENTIAL_ID",
@@ -95,14 +121,14 @@
     },
     {
       "parameters": {
-        "jsCode": "// Log successful execution\nconst executionData = $input.first().json;\n\nconsole.log('✅ News automation completed successfully');\nconsole.log(`📊 Headlines sent: ${executionData.totalHeadlines || 0}`);\nconsole.log(`⏰ Execution time: ${new Date().toLocaleString()}`);\n\n// Return success data for logging\nreturn [{\n  json: {\n    status: 'success',\n    message: 'News automation completed successfully',\n    headlinesSent: executionData.totalHeadlines || 0,\n    executionTime: new Date().toISOString(),\n    workflowName: 'Scheduled News Automation'\n  }\n}];"
+        "jsCode": "// Runs only after Telegram accepted the message, so a failed send is retried next run.\nconst MAX_REMEMBERED = 500;\nconst staticData = $getWorkflowStaticData('global');\nconst keys = $('Format Digest').first().json.articleKeys || [];\nconst merged = [...new Set([...(staticData.sentKeys || []), ...keys])];\nstaticData.sentKeys = merged.slice(-MAX_REMEMBERED);\nreturn [{\n  json: {\n    status: 'sent',\n    headlinesSent: keys.length,\n    rememberedKeys: staticData.sentKeys.length,\n    executionTime: new Date().toISOString(),\n  },\n}];"
       },
-      "id": "success-log",
-      "name": "Success Log",
+      "id": "remember-node",
+      "name": "Remember Sent Articles",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1120,
+        1340,
         300
       ]
     }
@@ -123,14 +149,25 @@
       "main": [
         [
           {
-            "node": "Process News Data",
+            "node": "Normalize and Dedup",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Process News Data": {
+    "Normalize and Dedup": {
+      "main": [
+        [
+          {
+            "node": "Format Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Digest": {
       "main": [
         [
           {
@@ -145,7 +182,7 @@
       "main": [
         [
           {
-            "node": "Success Log",
+            "node": "Remember Sent Articles",
             "type": "main",
             "index": 0
           }
@@ -154,6 +191,12 @@
     }
   },
   "active": false,
-  "settings": {},
-  "versionId": "1"
+  "settings": {
+    "executionOrder": "v1",
+    "executionTimeout": 120,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "pinData": {},
+  "versionId": "2"
 }
