@@ -16,25 +16,45 @@
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1,
-      "position": [240, 300]
+      "position": [
+        240,
+        300
+      ]
     },
     {
       "parameters": {
         "method": "GET",
         "url": "https://api.thenewsapi.com/v1/news/top",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
         "queryParameters": {
-          "parameter": [
-            { "name": "api_token", "value": "YOUR_API_KEY" },
-            { "name": "locale", "value": "us" },
-            { "name": "limit", "value": "5" }
+          "parameters": [
+            {
+              "name": "locale",
+              "value": "us"
+            },
+            {
+              "name": "limit",
+              "value": "5"
+            }
           ]
         }
       },
       "id": "http-request",
       "name": "HTTP Request - News API",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
-      "position": [460, 300]
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "TheNewsAPI token"
+        }
+      }
     },
     {
       "parameters": {
@@ -44,12 +64,15 @@
       "name": "Process News Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [680, 300]
+      "position": [
+        680,
+        300
+      ]
     },
     {
       "parameters": {
         "operation": "sendMessage",
-        "chatId": "748964740",
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
         "text": "={{ $json.message }}",
         "additionalFields": {
           "parseMode": "Markdown"
@@ -59,7 +82,16 @@
       "name": "Send to Telegram",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1,
-      "position": [900, 300]
+      "position": [
+        900,
+        300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Telegram bot"
+        }
+      }
     },
     {
       "parameters": {
@@ -69,35 +101,54 @@
       "name": "Success Log",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1120, 300]
+      "position": [
+        1120,
+        300
+      ]
     }
   ],
   "connections": {
     "Schedule Trigger": {
       "main": [
         [
-          { "node": "HTTP Request - News API", "type": "main", "index": 0 }
+          {
+            "node": "HTTP Request - News API",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "HTTP Request - News API": {
       "main": [
         [
-          { "node": "Process News Data", "type": "main", "index": 0 }
+          {
+            "node": "Process News Data",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Process News Data": {
       "main": [
         [
-          { "node": "Send to Telegram", "type": "main", "index": 0 }
+          {
+            "node": "Send to Telegram",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Send to Telegram": {
       "main": [
         [
-          { "node": "Success Log", "type": "main", "index": 0 }
+          {
+            "node": "Success Log",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     }

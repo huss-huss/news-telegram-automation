@@ -1,0 +1,20 @@
+# Secrets: never commit real values (use .env.example as the template)
+.env
+.env.*
+!.env.example
+
+# Local n8n data
+.n8n/
+n8n-data/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
