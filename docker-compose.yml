@@ -1,0 +1,28 @@
+# Local n8n for this project.
+#   cp .env.example .env   # then edit values
+#   docker compose up -d   # UI at http://localhost:5678
+services:
+  n8n:
+    # Pinned release; bump deliberately after reading the n8n release notes.
+    image: n8nio/n8n:2.45.5
+    container_name: news-telegram-n8n
+    restart: unless-stopped
+    ports:
+      # Bound to localhost only; put a reverse proxy with TLS in front for remote access.
+      - "127.0.0.1:5678:5678"
+    env_file:
+      - .env
+    environment:
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      # Prune old execution logs so the volume does not grow without bound.
+      EXECUTIONS_DATA_PRUNE: "true"
+      EXECUTIONS_DATA_MAX_AGE: "336"
+    volumes:
+      # Credentials, workflows, static data (sent-article history) and settings.
+      - n8n_data:/home/node/.n8n
+      # Repository workflows, read-only, for `n8n import:workflow`.
+      - ./workflows:/workflows:ro
+
+volumes:
+  n8n_data:
