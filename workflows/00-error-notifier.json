@@ -1,0 +1,88 @@
+{
+  "name": "00 - Error Notifier (Telegram)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "error-trigger",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;');\n// Redact anything that looks like a credential before it leaves n8n.\nconst redact = (s) => String(s ?? '')\n  .replace(/bot\\d+:[A-Za-z0-9_-]+/g, 'bot***')\n  .replace(/((?:api_)?token|key|secret|password)=[^&\\s]+/gi, '$1=***');\nconst e = $json;\nconst workflow = e.workflow?.name || 'unknown workflow';\nconst node = e.execution?.lastNodeExecuted || e.trigger?.node?.name || 'unknown node';\nconst error = e.execution?.error?.message || e.trigger?.error?.message || 'Unknown error';\nconst url = e.execution?.url;\nlet text = `<b>n8n workflow failed</b>\\nWorkflow: ${esc(workflow)}\\nNode: ${esc(node)}\\nError: ${esc(redact(error)).slice(0, 500)}`;\nif (url) text += `\\n<a href=\"${esc(url)}\">Open execution</a>`;\nreturn [{ json: { text } }];"
+      },
+      "id": "build-alert",
+      "name": "Build Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_ALERT_CHAT_ID || $env.TELEGRAM_CHAT_ID }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "send-alert",
+      "name": "Send Alert to Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        680,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Telegram bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Build Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Alert": {
+      "main": [
+        [
+          {
+            "node": "Send Alert to Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "executionTimeout": 60
+  },
+  "pinData": {},
+  "versionId": "2"
+}

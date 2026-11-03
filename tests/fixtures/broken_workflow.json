@@ -1,0 +1,60 @@
+{
+  "name": "Broken workflow (test fixture)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.example.com/news",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "api_token", "value": "inline-value-that-should-be-a-credential" }
+          ]
+        }
+      },
+      "id": "http",
+      "name": "Fetch News",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "123456789",
+        "text": "={{ $env.UNDOCUMENTED_VARIABLE }}"
+      },
+      "id": "http",
+      "name": "Fetch News",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [680, 300],
+      "credentials": {
+        "telegramApi": { "id": "1", "name": "Telegram bot", "accessToken": "inline-credential-data" }
+      }
+    },
+    {
+      "parameters": {},
+      "name": "No Position",
+      "type": "n8n-nodes-base.noOp"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [[{ "node": "Fetch News", "type": "main", "index": 0 }]]
+    },
+    "Fetch News": {
+      "main": [[{ "node": "Send To Nowhere", "type": "main", "index": 0 }]]
+    },
+    "Ghost Node": {
+      "main": [[{ "node": "Fetch News", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": { "Fetch News": [{ "json": { "title": "pinned" } }] }
+}

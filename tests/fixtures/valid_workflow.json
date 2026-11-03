@@ -1,0 +1,31 @@
+{
+  "name": "Valid workflow (test fixture)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "hello"
+      },
+      "id": "send",
+      "name": "Send",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [460, 300],
+      "credentials": { "telegramApi": { "id": "REPLACE_WITH_CREDENTIAL_ID", "name": "Telegram bot" } }
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [[{ "node": "Send", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {}
+}

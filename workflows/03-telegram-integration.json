@@ -1,5 +1,5 @@
 {
-  "name": "03 - Telegram Integration (Fixed)",
+  "name": "03 - Telegram Integration",
   "nodes": [
     {
       "parameters": {},
@@ -7,74 +7,139 @@
       "name": "Manual Trigger",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
-      "position": [240, 300]
+      "position": [
+        240,
+        300
+      ]
     },
     {
       "parameters": {
-        "method": "GET",
         "url": "https://api.thenewsapi.com/v1/news/top",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
         "queryParameters": {
-          "parameter": [
-            { "name": "api_token", "value": "i36rBJnfsyLRyTJG1NN6GYpCqAJHJtwLLbtsQ6nH" },
-            { "name": "locale", "value": "us" },
-            { "name": "limit", "value": "3" }
+          "parameters": [
+            {
+              "name": "locale",
+              "value": "={{ $env.NEWS_LOCALE || 'us' }}"
+            },
+            {
+              "name": "language",
+              "value": "={{ $env.NEWS_LANGUAGE || 'en' }}"
+            },
+            {
+              "name": "limit",
+              "value": "={{ $env.NEWS_LIMIT || '3' }}"
+            }
           ]
+        },
+        "options": {
+          "timeout": 15000
         }
       },
       "id": "http-request",
       "name": "HTTP Request - News API",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
-      "position": [460, 300]
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "TheNewsAPI token"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "const input = $input.first();\nconst items = (input?.json?.data ?? []).slice(0,5);\nconst headlines = items.map((a, i) => `${i+1}. ${a.title}`);\nconst message = `📰 Latest Top Stories\\n\\n${headlines.join('\\n')}\\n\\nSource: TheNewsAPI.com\\nFetched: ${new Date().toLocaleString()}`;\nreturn [{ json: { message, headlines, totalHeadlines: headlines.length, timestamp: new Date().toISOString() } }];"
+        "jsCode": "const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;');\nconst body = $input.first().json;\nif (!Array.isArray(body.data)) {\n  throw new Error('Unexpected News API response: missing data[] array');\n}\nconst articles = body.data.filter((a) => a && a.title && a.url);\nconst lines = articles.map((a, i) => `${i + 1}. <a href=\"${esc(a.url)}\">${esc(a.title.trim())}</a>`);\nconst message = `<b>Latest Top Stories</b>\\n\\n${lines.join('\\n')}\\n\\n<i>Source: TheNewsAPI.com</i>`;\nreturn [{ json: { message, totalHeadlines: lines.length, timestamp: new Date().toISOString() } }];"
       },
       "id": "code-node",
       "name": "Process News Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [680, 300]
+      "position": [
+        680,
+        300
+      ]
     },
     {
       "parameters": {
-        "operation": "sendMessage",
-        "chatId": "748964740",
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
         "text": "={{ $json.message }}",
-        "additionalFields": {}
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true,
+          "parse_mode": "HTML"
+        }
       },
       "id": "telegram-node",
       "name": "Send to Telegram",
       "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1,
-      "position": [900, 300]
+      "typeVersion": 1.2,
+      "position": [
+        900,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Telegram bot"
+        }
+      }
     }
   ],
   "connections": {
     "Manual Trigger": {
       "main": [
         [
-          { "node": "HTTP Request - News API", "type": "main", "index": 0 }
+          {
+            "node": "HTTP Request - News API",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "HTTP Request - News API": {
       "main": [
         [
-          { "node": "Process News Data", "type": "main", "index": 0 }
+          {
+            "node": "Process News Data",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Process News Data": {
       "main": [
         [
-          { "node": "Send to Telegram", "type": "main", "index": 0 }
+          {
+            "node": "Send to Telegram",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     }
   },
   "active": false,
-  "settings": {},
-  "versionId": "1"
+  "settings": {
+    "executionOrder": "v1",
+    "executionTimeout": 120,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "pinData": {},
+  "versionId": "2"
 }

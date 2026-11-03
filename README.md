@@ -1,120 +1,113 @@
-# 📰 News Telegram Automation
+# News Telegram Automation
 
-> **Automated news delivery to Telegram using n8n workflows** 🚀
+n8n workflows that fetch top headlines from [TheNewsAPI](https://www.thenewsapi.com/) and deliver a
+daily digest to a Telegram chat, with retries, de-duplication and failure alerts.
 
-A complete automation system that fetches top news headlines and delivers them directly to your Telegram chat.
+Built in 2025 as a set of n8n learning workflows; hardened in 2026 with credential hygiene, reliability
+features, a workflow validator, tests, a pinned Docker setup and CI.
 
-![n8n](https://img.shields.io/badge/n8n-Workflow%20Automation-blue?style=for-the-badge)
-![Telegram](https://img.shields.io/badge/Telegram-Bot%20API-blue?style=for-the-badge)
-![News API](https://img.shields.io/badge/News%20API-Real%20Time%20News-green?style=for-the-badge)
+## What it does
 
-## ✨ Features
+| Workflow | Trigger | Purpose |
+| --- | --- | --- |
+| `00-error-notifier.json` | Error Trigger | Sends a redacted alert to Telegram when another workflow fails |
+| `01-basic-trigger.json` | Manual | Minimal "hello world" Code node |
+| `02-news-api.json` | Manual | Fetch headlines and build a message (no sending) |
+| `03-telegram-integration.json` | Manual | Fetch headlines and send them to Telegram once |
+| `04-scheduled-automation.json` | Daily cron, 09:00 | Main flow: fetch, de-duplicate, format, send, remember what was sent |
 
-- 🔄 **Automated News Fetching** - Get fresh headlines from TheNewsAPI.com
-- 📱 **Telegram Integration** - Instant delivery to your mobile device
-- ⏰ **Scheduled Automation** - Daily news delivery at 9 AM
-- 🛠️ **Manual Triggers** - Test and control workflows anytime
-- 📊 **Success Logging** - Track execution and performance
-
-## 🚀 Quick Start
-
-### 1. Start n8n
-```bash
-docker run -it --rm --name n8n -p 5678:5678 \
-  -e N8N_BASIC_AUTH_USER=user \
-  -e N8N_BASIC_AUTH_PASSWORD=pass \
-  -v n8n_data:/home/node/.n8n \
-  n8nio/n8n
+```mermaid
+flowchart LR
+    A["Schedule Trigger (cron 0 9 * * *)"] --> B["HTTP Request: TheNewsAPI /v1/news/top"]
+    B --> C["Normalize and Dedup (static data)"]
+    C -->|"new articles"| D["Format Digest (HTML, escaped)"]
+    C -->|"0 new"| X(["Stop: nothing to send"])
+    D --> E["Send to Telegram"]
+    E --> F["Remember Sent Articles"]
+    B -. "fails after 3 tries" .-> G["00 - Error Notifier"]
+    E -. "fails after 3 tries" .-> G
+    G --> H["Telegram alert (secrets redacted)"]
 ```
 
-### 2. Setup Telegram Bot
-```bash
-./scripts/setup-telegram-bot.sh
-```
+## Setup in 5 steps
 
-### 3. Import Workflows
-Import these workflows in order:
-1. `workflows/02-news-api.json` - Basic news fetching
-2. `workflows/03-telegram-integration.json` - News + Telegram
-3. `workflows/04-scheduled-automation.json` - Full automation
+Prerequisites: Docker with the Compose plugin, a Telegram account and a TheNewsAPI API token.
 
-## 📁 Project Structure
+1. **Configure the environment**
+   ```bash
+   cp .env.example .env
+   # set N8N_ENCRYPTION_KEY (openssl rand -hex 32); leave the rest for now
+   ```
+2. **Create the bot and find your chat ID**: create a bot with @BotFather, then run
+   `./scripts/setup-telegram-bot.sh`. It checks the token, sends a test message and writes
+   `TELEGRAM_CHAT_ID` to `.env`. The token itself is not saved. (`./scripts/get-chat-id.sh` only prints chat IDs.)
+3. **Start n8n**
+   ```bash
+   docker compose up -d        # http://localhost:5678, create the owner account on first visit
+   ```
+4. **Add credentials** in n8n under *Credentials, Add credential*:
+   - *Telegram API*, named `Telegram bot`: paste the bot token.
+   - *Query Auth*, named `TheNewsAPI token`: name `api_token`, value: your API token.
+5. **Import and activate**
+   ```bash
+   docker compose exec n8n n8n import:workflow --separate --input=/workflows
+   ```
+   Open each imported workflow and select the two credentials on the HTTP and Telegram nodes. In
+   `04 - Scheduled News Automation`, open *Settings* and set *Error workflow* to `00 - Error Notifier (Telegram)`.
+   Run `03` once to test, then activate `04`.
 
-```
-news-telegram-automation/
-├── 📄 README.md
-├── 📁 workflows/                   # n8n workflow files
-│   ├── 02-news-api.json           # Basic news API integration
-│   ├── 03-telegram-integration.json # News + Telegram sending
-│   └── 04-scheduled-automation.json # Complete automation
-└── 📁 scripts/                     # Setup scripts
-    ├── setup-telegram-bot.sh      # Telegram bot setup
-    └── get-chat-id.sh             # Chat ID finder
-```
+## Configuration
 
-## 🔧 Workflow Details
+| Variable | Required | Default | Used by |
+| --- | --- | --- | --- |
+| `N8N_ENCRYPTION_KEY` | yes | none | n8n: encrypts stored credentials; keep it stable |
+| `GENERIC_TIMEZONE` | no | `UTC` | n8n: timezone for the 09:00 schedule |
+| `N8N_BLOCK_ENV_ACCESS_IN_NODE` | yes | `false` | n8n 2.x blocks `$env` by default; the workflows read the values below via `$env` |
+| `TELEGRAM_CHAT_ID` | yes | none | 03, 04, 00: digest recipient |
+| `TELEGRAM_ALERT_CHAT_ID` | no | `TELEGRAM_CHAT_ID` | 00: failure alert recipient |
+| `NEWS_LOCALE` | no | `us` | TheNewsAPI `locale` filter |
+| `NEWS_LANGUAGE` | no | `en` | TheNewsAPI `language` filter |
+| `NEWS_LIMIT` | no | `3` | Articles per request (your API plan may cap this) |
 
-### Workflow 02: News API Integration
-- **Purpose**: Fetch news from TheNewsAPI.com
-- **Trigger**: Manual
-- **Features**: Error handling with fallback data
+Secrets (bot token, API token) live only in n8n's encrypted credential store, never in `.env` or the
+workflow JSON. To change the schedule, edit the cron expression on the *Schedule Trigger* node.
 
-### Workflow 03: Telegram Integration
-- **Purpose**: Send news to Telegram
-- **Trigger**: Manual
-- **Features**: Markdown formatting, error handling
+## Reliability features
 
-### Workflow 04: Scheduled Automation
-- **Purpose**: Complete automated news delivery
-- **Trigger**: Daily at 9 AM
-- **Features**: Full automation with logging
+- **Retries with backoff**: the News API and Telegram nodes retry up to 3 times (3 s and 5 s apart).
+- **Timeouts**: 15 s per News API request; 120 s per workflow execution (60 s for the notifier).
+- **De-duplication**: article IDs (`uuid`, falling back to the URL) are kept in workflow static data,
+  capped at the last 500. An ID is recorded only after Telegram accepts the message, so a failed send is
+  retried on the next run instead of being lost.
+- **Failure alerts**: `00-error-notifier.json` posts the workflow name, failing node and error message to
+  Telegram. Token-like strings are redacted first.
+- **Safe formatting**: messages use Telegram HTML mode with escaping, so headlines containing `*`, `_`
+  or `<` no longer break delivery; output is capped below Telegram's 4096-character limit.
+- **Validation**: `tools/validate_workflows.py` fails CI on invalid JSON, duplicate node names or ids,
+  broken connections, inline secrets, hard-coded chat IDs, pinned data or undocumented `$env` variables.
 
-## 🛠️ Configuration
-
-### Environment Variables
-```bash
-TELEGRAM_CHAT_ID=your_chat_id_here
-NEWS_API_TOKEN=your_api_token_here
-```
-
-### Customization Options
-- **Schedule Time**: Modify the Schedule Trigger node
-- **News Count**: Change the `limit` parameter
-- **News Categories**: Add category filters
-- **Message Format**: Customize message templates
-
-## 📱 Telegram Setup
-
-1. **Create Bot**: Message @BotFather on Telegram
-2. **Get Token**: Save the bot token provided
-3. **Get Chat ID**: Use the provided script
-4. **Configure**: Add credentials in n8n
+## Development
 
 ```bash
-./get-chat-id.sh YOUR_BOT_TOKEN
+python3 -m venv .venv && . .venv/bin/activate
+pip install -r requirements-dev.txt
+python tools/validate_workflows.py workflows --env-example .env.example
+pytest
+shellcheck scripts/*.sh
 ```
 
-## 🎯 Use Cases
+CI (`.github/workflows/ci.yml`) runs the same checks, plus a JSON lint and `docker compose config`.
 
-- **Daily News Digest** - Start your day with top headlines
-- **Breaking News Alerts** - Get notified of important events
-- **Custom News Feeds** - Filter by category or keywords
-- **Team Updates** - Share news with colleagues
+## Limitations
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
----
-
-<div align="center">
-
-**Made with ❤️ and ☕**
-
-[![GitHub stars](https://img.shields.io/github/stars/yourusername/news-telegram-automation?style=social)](https://github.com/yourusername/news-telegram-automation)
-
-</div>
+- n8n saves static data only for production executions (an active workflow started by its trigger).
+  Manual test runs never mark articles as sent, so running `04` by hand can send the same headlines again.
+- The duplicate history lives in n8n's database: it survives restarts but is lost if the `n8n_data`
+  volume is deleted or the workflow is re-imported as a new workflow.
+- If Telegram accepts a message but the response never arrives, the retry can send a duplicate digest.
+  For a news digest that is a better trade-off than missing a message.
+- The error workflow has to be linked by hand after import, because workflow IDs differ per instance.
+- One news provider only: when TheNewsAPI is down or the quota is used up, no digest is sent
+  (the failure alert still fires).
+- The workflow JSON is written for n8n 2.x and checked statically in CI; CI does not import it into a
+  running n8n instance.
